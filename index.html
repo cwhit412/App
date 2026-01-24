@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OOTP Tournament Stats Explorer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #111;
+      color: #eee;
+    }
+    header {
+      padding: 1rem 1.5rem;
+      background: #222;
+      border-bottom: 1px solid #333;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    header p {
+      margin: 0.25rem 0 0 0;
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+    main {
+      height: calc(100vh - 70px); /* full height minus header */
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .tipjar {
+      position: absolute;
+      top: 1rem;
+      right: 1.5rem;
+      font-size: 0.9rem;
+    }
+    .tipjar a {
+      color: #ffd166;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>OOTP Tournament Stats Explorer</h1>
+    <p>Interactive Perfect Team tournament stats, powered by Shiny.</p>
+    </div>
+  </header>
+
+  <main>
+    <iframe
+      src="https://dcfcstats.shinyapps.io/ootp-pt-app/">
+    </iframe>
+  </main>
+</body>
+</html>

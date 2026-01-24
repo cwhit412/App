@@ -1,6 +1,22 @@
-.Rproj.user
+# R / RStudio
 .Rhistory
 .RData
-.httr-oauth
+.RDataTmp*
+.Rproj.user/
+.Ruserdata
+.RDS
+
+# targets
+_targets/
+targets/
+run_targets.r
+
+# Shiny deploy metadata
+rsconnect/
+
+# Data outputs
+tournament_data/*.rds
+tournament_data/*.csv
+
+# macOS
 .DS_Store
-.quarto

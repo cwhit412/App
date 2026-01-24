@@ -1,22 +1,27 @@
 # R / RStudio
+.Rproj.user
 .Rhistory
 .RData
-.RDataTmp*
-.Rproj.user/
 .Ruserdata
-.RDS
+.RDataTmp
+.RDataTmp1
 
-# targets
-_targets/
-targets/
-run_targets.r
-
-# Shiny deploy metadata
-rsconnect/
-
-# Data outputs
-tournament_data/*.rds
-tournament_data/*.csv
+# Quarto / misc
+.quarto
 
 # macOS
 .DS_Store
+
+# Shiny deployment metadata
+rsconnect/
+
+# targets build artifacts
+_targets/
+targets/
+
+# Raw tournament CSVs (keep only tourn_details.csv)
+tournament_data/*.csv
+!tournament_data/tourn_details.csv
+
+# Do not track run_targets
+run_targets.R

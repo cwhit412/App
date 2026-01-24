@@ -1,0 +1,10 @@
+name: ootp-pt-app
+title:
+username: dcfcstats
+account: dcfcstats
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16502120
+bundleId: 11489197
+url: https://dcfcstats.shinyapps.io/ootp-pt-app/
+version: 1

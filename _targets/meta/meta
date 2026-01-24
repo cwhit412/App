@@ -1,0 +1,14 @@
+name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
+all_perf|stem|15aa2db1e5b8e885|8ae6a7af2f8f79a7|60a0e07222f87cdd|-63643463||t20458.7999514818s|s8019624b|8019624|rds|local|vector|||1.138||
+all_perf_rds|stem|15aa2db1e5b8e885|67aa7b4101dbdee3|fbb00fba661291bd|-1333965644|tournament_data/all_perf.rds|t20458.7999806469s|s8019624b|8019624|file|local|vector|||2.091||
+read_tourney_file|function|058701cb82e81505
+team_perf_base_rds|stem|a22a205ef6a175f7|c7107a3709ed79cd|78e467f62e5c8a29|1477843022|tournament_data/team_perf_base.rds|t20468.7364879751s|s34982b|34982|file|local|vector|||0.009||
+read_tourney_csv|function|058701cb82e81505
+make_team_perf_base|function|0cc5cc3a27844508
+make_tourney_label|function|16cabe0ac26b5d7c
+perf_files|stem|d4c39c8866d0d58c|e9f3b21e5a5f84a3|2c530c1562a7fbd1|365141575|tournament_data/bronzequick.csv*tournament_data/diamondquick.csv*tournament_data/goldquick.csv*tournament_data/ironlunchpail.csv*tournament_data/ironquick.csv*tournament_data/lowirondank.csv*tournament_data/pumpingiron.csv*tournament_data/silverquick.csv*tournament_data/snapshotsweekly.csv|t20455.0817752122s|s101856325b|101856325|file|local|vector|||0.148||
+tourn_details_file|stem|c24a802eadd4cac8|d6af8da1c71cb0b8|2c530c1562a7fbd1|1092537218|tournament_data/tourn_details.csv|t20468.7587232445s|s715b|715|file|local|vector|||0||
+tourn_details|stem|d63575842c31a4f5|adb4ab605e2606a6|6e62b7afb8e8c248|-1693757655||t20468.7588921685s|s626b|626|rds|local|vector|||0.094||
+all_perf_raw|stem|e24827d9baeacbd8|7c709d5467686926|507001d5c8fce490|1430905210||t20468.7589778056s|s16982014b|16982014|rds|local|vector|||2.592||
+all_perf_raw_rds|stem|e24827d9baeacbd8|5751ec6aa397356c|679a1483d61fdec1|2105677098|tournament_data/all_perf_raw.rds|t20468.7590439331s|s16982014b|16982014|file|local|vector|||4.652||
+team_perf_base|stem|a22a205ef6a175f7|32343530939832d5|f9bbe2b660872ef3|-1706139607||t20468.7590554108s|s34982b|34982|rds|local|vector|||0.117||

@@ -1,0 +1,10 @@
+﻿name,varname,type,startdate,enddate,tier,subtier,subcategory,ceiling,floor,capyn,capnum,vecap,vecapnum,dh,modern,year,mode,teams,live,unsung,snapshot,nel,fl,legend,hh,allstar,rookie,eramax,eramin,prize
+Bronze,bronzequick,Quick,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Silver,silverquick,Quick,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Iron,ironquick,Quick,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Gold,goldquick,Quick,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Diamond,diamondquick,Quick,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Iron Lunchpail,ironlunchpail,Daily,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Low Iron Dank,lowirondank,Daily,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Pumping Iron,pumpingiron,Daily,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Snapshots,snapshotsweekly,Weekly,,,,,,,,,,,,,,,,,,,,,,,,,,,,

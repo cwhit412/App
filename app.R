@@ -8,6 +8,13 @@ source("functions.R")
 DATA_RDS <- file.path("tournament_data", "team_perf_base.rds")
 RAW_RDS  <- file.path("tournament_data", "all_perf_raw.rds")
 
+# ---- Global data (loaded once per R process) ----
+TEAM_RDS <- file.path("tournament_data", "team_perf_base.rds")
+RAW_RDS  <- file.path("tournament_data", "all_perf_raw.rds")
+
+team_perf_base_static <- readRDS(TEAM_RDS)
+raw_static            <- readRDS(RAW_RDS)
+
 HITTER_DISPLAY_COLS <- c(
   "CID",            # <--- keep the card ID
   "Name", 'VLvl', "POS", "PA",
@@ -96,22 +103,15 @@ ui <- fluidPage(
     
     TEAM_RDS <- file.path("tournament_data", "team_perf_base.rds")
     RAW_RDS  <- file.path("tournament_data", "all_perf_raw.rds")
-    modal_level <- reactiveVal("team")  # "team", "tourney", "instance"
+    modal_level <- reactiveVal("team")
     
+    team_perf_base_df <- reactive({
+      team_perf_base_static
+    })
     
-    team_perf_base_df <- reactiveFileReader(
-      intervalMillis = 2000,
-      session = session,
-      filePath = TEAM_RDS,
-      readFunc = readRDS
-    )
-    
-    raw_df <- reactiveFileReader(
-      intervalMillis = 2000,
-      session = session,
-      filePath = RAW_RDS,
-      readFunc = readRDS
-    )
+    raw_df <- reactive({
+      raw_static
+    })
     
     all_perf <- reactive({
       df <- team_perf_base_df()

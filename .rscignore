@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+rsconnect/
+_targets/
+targets/
+run_targets.R
+tournament_data/all_perf.rds

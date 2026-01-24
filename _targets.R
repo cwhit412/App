@@ -59,7 +59,7 @@ make_team_perf_base <- function(df) {
 list(
   tar_target(
     perf_files,
-    fs::dir_ls("tournament_data", regexp = "\\.csv$") |>
+    fs::dir_ls("../raw_data", regexp = "\\.csv$") |>
       purrr::discard(~ stringr::str_detect(basename(.x), "^tourn_details\\.csv$")),
     format = "file",
     cue = tar_cue(mode = "always")

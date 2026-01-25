@@ -24,7 +24,6 @@ if (!file.exists(RAW_RDS)) {
 team_perf_base_static <- readRDS(TEAM_RDS)
 raw_static            <- readRDS(RAW_RDS)
 woba_weights_static   <- if (file.exists(W_RDS)) readRDS(W_RDS) else tibble()
-
 HITTER_DISPLAY_COLS <- c(
   "CID",            # <--- keep the card ID
   "Name", 'VLvl', "POS", "PA",

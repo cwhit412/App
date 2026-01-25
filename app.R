@@ -5,15 +5,25 @@ library(tibble)
 
 source("functions.R")
 
-DATA_RDS <- file.path("tournament_data", "team_perf_base.rds")
-RAW_RDS  <- file.path("tournament_data", "all_perf_raw.rds")
+# Root directory of the *deployed* app bundle.
+# On shinyapps.io, getwd() will be the app directory.
+APP_DIR <- getwd()
 
-# ---- Global data (loaded once per R process) ----
-TEAM_RDS <- file.path("tournament_data", "team_perf_base.rds")
-RAW_RDS  <- file.path("tournament_data", "all_perf_raw.rds")
+TEAM_RDS <- file.path(APP_DIR, "tournament_data", "team_perf_base.rds")
+RAW_RDS  <- file.path(APP_DIR, "tournament_data", "all_perf_raw.rds")
+W_RDS    <- file.path(APP_DIR, "tournament_data", "woba_weights.rds")
+
+# Helpful checks so the app fails with a clear message instead of just dying
+if (!file.exists(TEAM_RDS)) {
+  stop("Missing RDS file: ", TEAM_RDS)
+}
+if (!file.exists(RAW_RDS)) {
+  stop("Missing RDS file: ", RAW_RDS)
+}
 
 team_perf_base_static <- readRDS(TEAM_RDS)
 raw_static            <- readRDS(RAW_RDS)
+woba_weights_static   <- if (file.exists(W_RDS)) readRDS(W_RDS) else tibble()
 
 HITTER_DISPLAY_COLS <- c(
   "CID",            # <--- keep the card ID
@@ -86,12 +96,15 @@ ui <- fluidPage(
         tabPanel(
           "Hitters",
           div(class = "small text-muted", uiOutput("hitter_data_span")),
+          uiOutput("hitter_top_summary"),   # <--- NEW summary row
           DTOutput("hitter_summary_tbl")
         ),
         
         tabPanel(
           "Pitchers",
           div(class = "small text-muted", uiOutput("pitcher_data_span")),
+          uiOutput("env_summary_ui"),
+          uiOutput("woba_weights_ui"),
           DTOutput("pitcher_summary_tbl")
         )
       )
@@ -101,8 +114,6 @@ ui <- fluidPage(
 
   server <- function(input, output, session) {
     
-    TEAM_RDS <- file.path("tournament_data", "team_perf_base.rds")
-    RAW_RDS  <- file.path("tournament_data", "all_perf_raw.rds")
     modal_level <- reactiveVal("team")
     
     team_perf_base_df <- reactive({
@@ -116,6 +127,10 @@ ui <- fluidPage(
     all_perf <- reactive({
       df <- team_perf_base_df()
       if (is.null(df)) tibble::tibble() else df
+    })
+    # wOBA weights for the app (by tournament_type)
+    woba_weights <- reactive({
+      woba_weights_static
     })
   
     # existing:
@@ -512,6 +527,203 @@ ui <- fluidPage(
     
     df
   })
+  
+  # Run environment / per-PA summary for the currently selected tournament
+  env_summary <- reactive({
+    df <- tourney_raw()
+    req(nrow(df) > 0)
+    
+    sums <- df %>%
+      dplyr::summarise(
+        PAsum = sum(PA, na.rm = TRUE),
+        ABsum = sum(AB, na.rm = TRUE),
+        Hsum  = sum(H,  na.rm = TRUE),
+        HRsum = sum(HR, na.rm = TRUE),
+        BBsum = sum(BB, na.rm = TRUE),
+        SOsum = sum(SO, na.rm = TRUE),
+        Rsum  = sum(R,  na.rm = TRUE),
+        IPsum = sum(IP, na.rm = TRUE),
+        .groups = "drop"
+      )
+    
+    with(sums, tibble::tibble(
+      R_per_PA  = ifelse(PAsum > 0, Rsum  / PAsum, NA_real_),
+      HR_per_PA = ifelse(PAsum > 0, HRsum / PAsum, NA_real_),
+      BB_per_PA = ifelse(PAsum > 0, BBsum / PAsum, NA_real_),
+      SO_per_PA = ifelse(PAsum > 0, SOsum / PAsum, NA_real_),
+      AVG       = ifelse(ABsum > 0, Hsum  / ABsum, NA_real_),
+      R_per_9   = ifelse(IPsum > 0, 9 * Rsum / IPsum, NA_real_)
+    ))
+  })
+  
+  output$env_summary_ui <- renderUI({
+    env <- env_summary()
+    if (nrow(env) == 0) return(NULL)
+    
+    fmt <- function(x) ifelse(is.na(x), "–", sprintf("%.3f", x))
+    
+    tags$div(
+      class = "small",
+      tags$strong("Run environment (current tournament):"),
+      tags$table(
+        class = "table table-condensed table-sm",
+        tags$thead(
+          tags$tr(
+            tags$th("R/PA"),
+            tags$th("HR/PA"),
+            tags$th("BB/PA"),
+            tags$th("SO/PA"),
+            tags$th("AVG"),
+            tags$th("R/9")
+          )
+        ),
+        tags$tbody(
+          tags$tr(
+            tags$td(fmt(env$R_per_PA)),
+            tags$td(fmt(env$HR_per_PA)),
+            tags$td(fmt(env$BB_per_PA)),
+            tags$td(fmt(env$SO_per_PA)),
+            tags$td(fmt(env$AVG)),
+            tags$td(fmt(env$R_per_9))
+          )
+        )
+      )
+    )
+  })
+  output$woba_weights_ui <- renderUI({
+    ww_all <- woba_weights()
+    if (is.null(ww_all) || nrow(ww_all) == 0) return(NULL)
+    if (is.null(input$tourney_key)) return(NULL)
+    
+    if (!"tourney_type" %in% names(ww_all)) return(NULL)
+    
+    ww <- ww_all %>%
+      dplyr::filter(tourney_type == input$tourney_key)
+    
+    if (nrow(ww) == 0) return(NULL)
+    ww <- ww[1, , drop = FALSE]
+    
+    cols <- c("wBB", "wHBP", "w1B", "w2B", "w3B", "wHR", "scale", "runenv")
+    cols <- intersect(cols, names(ww))
+    
+    fmt <- function(x) ifelse(is.na(x), "–", sprintf("%.3f", as.numeric(x)))
+    
+    tags$div(
+      class = "small",
+      tags$strong("wOBA weights (current tournament):"),
+      tags$table(
+        class = "table table-condensed table-sm",
+        tags$thead(tags$tr(lapply(cols, tags$th))),
+        tags$tbody(
+          tags$tr(lapply(ww[1, cols], function(v) tags$td(fmt(v))))
+        )
+      )
+    )
+  })
+  # ---- Hitter rating + wOBA weight summary for current tournament ---------
+  # ---- Hitter environment summary (match old league_env_summaries) --------
+  hitter_env_summary <- reactive({
+    df <- tourney_raw()
+    req(nrow(df) > 0)
+    if (!"PA" %in% names(df)) return(tibble::tibble())
+    
+    total_pa <- sum(df$PA, na.rm = TRUE)
+    if (!is.finite(total_pa) || total_pa <= 0) return(tibble::tibble())
+    
+    ## --- pitcher handedness from T/IP (righty_pct_p, lefty_pct_p) ---
+    if (all(c("T", "IP") %in% names(df))) {
+      ph <- df %>%
+        dplyr::group_by(T) %>%
+        dplyr::summarise(IP = sum(IP, na.rm = TRUE), .groups = "drop")
+      
+      total_ip <- sum(ph$IP, na.rm = TRUE)
+      
+      left_p  <- ph$IP[ph$T == "L"] / total_ip
+      right_p <- ph$IP[ph$T == "R"] / total_ip
+      
+      left_p  <- ifelse(is.na(left_p),  0, left_p)
+      right_p <- ifelse(is.na(right_p), 0, right_p)
+    } else {
+      left_p  <- NA_real_
+      right_p <- NA_real_
+    }
+    
+    ## --- average hitting ratings per PA (POW/EYE/K.s/BABIP/GAP) ---
+    rating_names_b <- c("POW", "EYE", "K.s", "BABIP", "GAP")
+    
+    rating_avgs_b <- df %>%
+      dplyr::filter(PA > 0) %>%
+      dplyr::summarise(
+        dplyr::across(
+          dplyr::all_of(rating_names_b),
+          ~ sum(.x * PA, na.rm = TRUE) / sum(PA, na.rm = TRUE),
+          .names = "{.col}_pa_avg"
+        )
+      )
+    
+    # start with pitcher-handedness columns, then join rating averages
+    tibble::tibble(
+      righty_pct_p = right_p,
+      lefty_pct_p  = left_p
+    ) %>%
+      dplyr::bind_cols(rating_avgs_b)
+  })
+  
+  output$hitter_top_summary <- renderUI({
+    base <- hitter_env_summary()
+    if (nrow(base) == 0) return(NULL)
+    
+    # Attach wOBA weights for the selected tournament_type, if available
+    ww_all <- woba_weights()
+    if (!is.null(ww_all) &&
+        nrow(ww_all) > 0 &&
+        "tourney_type" %in% names(ww_all) &&
+        !is.null(input$tourney_key)) {
+      
+      ww <- ww_all %>% dplyr::filter(tourney_type == input$tourney_key)
+      if (nrow(ww) >= 1) {
+        ww <- ww[1, , drop = FALSE]
+        keep_w <- intersect(
+          c("wBB", "wHBP", "w1B", "w2B", "w3B", "wHR"),
+          names(ww)
+        )
+        if (length(keep_w) > 0) {
+          base <- dplyr::bind_cols(
+            base,
+            ww[, keep_w, drop = FALSE]
+          )
+        }
+      }
+    }
+    
+    # Order columns to match the old app as closely as possible
+    desired_order <- c(
+      "righty_pct_p", "lefty_pct_p",
+      "POW_pa_avg", "EYE_pa_avg", "K.s_pa_avg", "BABIP_pa_avg", "GAP_pa_avg",
+      "wBB", "wHBP", "w1B", "w2B", "w3B", "wHR"
+    )
+    cols <- intersect(desired_order, names(base))
+    base <- base[, cols, drop = FALSE]
+    if (ncol(base) == 0) return(NULL)
+    
+    fmt <- function(x) ifelse(is.na(x), "–", sprintf("%.3f", as.numeric(x)))
+    
+    tags$div(
+      class = "small",
+      tags$strong(
+        paste0("Hitter Summary \u2014 ", input$tourney_key %||% "")
+      ),
+      tags$table(
+        class = "table table-condensed table-sm",
+        tags$thead(
+          tags$tr(lapply(names(base), tags$th))
+        ),
+        tags$tbody(
+          tags$tr(lapply(base[1, , drop = TRUE], function(v) tags$td(fmt(v))))
+        )
+      )
+    )
+  })
   output$hitter_pos_ui <- renderUI({
     df <- tourney_raw()
     if (!"POS" %in% names(df) || nrow(df) == 0) return(NULL)
@@ -596,30 +808,72 @@ ui <- fluidPage(
     
     req(nrow(df) > 0)
     
-    # Aggregate to card level
+    # Aggregate to card level, keeping counts needed for wOBA
     df_sum <- df %>%
       dplyr::group_by(Name, POS, CID, VLvl, Title) %>%
       dplyr::summarise(
-        PA  = sum(PA,    na.rm = TRUE),
-        AB  = sum(AB,    na.rm = TRUE),
-        H   = sum(H,     na.rm = TRUE),
-        HR  = sum(HR,    na.rm = TRUE),
-        BB  = sum(BB,    na.rm = TRUE),
-        SO  = sum(SO,    na.rm = TRUE),
-        X2B = sum(X2B.1, na.rm = TRUE),
-        X3B = sum(X3B.1, na.rm = TRUE),
+        PA   = sum(PA,     na.rm = TRUE),
+        AB   = sum(AB,     na.rm = TRUE),
+        H    = sum(H,      na.rm = TRUE),
+        HR   = sum(HR,     na.rm = TRUE),
+        BB   = sum(BB,     na.rm = TRUE),
+        IBB  = sum(IBB,    na.rm = TRUE),
+        HP   = sum(HP,     na.rm = TRUE),
+        SO   = sum(SO,     na.rm = TRUE),
+        X1B  = sum(X1B.1,  na.rm = TRUE),
+        X2B  = sum(X2B.1,  na.rm = TRUE),
+        X3B  = sum(X3B.1,  na.rm = TRUE),
         .groups = "drop"
       ) %>%
       add_hitter_rates()
     
+    # Attach wOBA weights for this tournament_type (if available)
+    wt_all <- woba_weights()
+    if (nrow(wt_all) > 0 && "tourney_type" %in% names(df)) {
+      # tourney_raw() is already filtered to one tourney_type
+      tt_idx <- which(!is.na(df$tourney_type))[1]
+      if (length(tt_idx) == 1 && !is.na(tt_idx)) {
+        tt <- df$tourney_type[tt_idx]
+        wt <- wt_all %>% dplyr::filter(tourney_type == tt)
+        
+        if (nrow(wt) == 1) {
+          df_sum <- df_sum %>%
+            dplyr::mutate(
+              singles = pmax(X1B, 0),
+              BB_nib  = pmax(BB - IBB, 0),
+              woba_num = wt$wBB  * BB_nib +
+                wt$wHBP * HP +
+                wt$w1B  * singles +
+                wt$w2B  * X2B +
+                wt$w3B  * X3B +
+                wt$wHR  * HR,
+              wOBA = dplyr::if_else(PA > 0, woba_num / PA, NA_real_)
+            )
+        } else {
+          df_sum$wOBA <- NA_real_
+        }
+      } else {
+        df_sum$wOBA <- NA_real_
+      }
+    } else {
+      df_sum$wOBA <- NA_real_
+    }
+    
     # Minimum PA filter at *card* level
     min_pa <- input$hitter_min_pa %||% 0
     df_sum <- df_sum %>%
-      dplyr::filter(PA >= min_pa) %>%
-      dplyr::select(all_of(HITTER_DISPLAY_COLS)) %>%
+      dplyr::filter(PA >= min_pa)
+    
+    # Final columns for the Hitters tab: keep your usual stats + wOBA
+    df_show <- df_sum %>%
+      dplyr::select(
+        CID, Name, VLvl, POS, PA,
+        wOBA,
+        BBpct, SOpct, HRpct, BABIP, XBH_pct
+      ) %>%
       dplyr::arrange(dplyr::desc(PA))
     
-    df_sum
+    df_show
   })
   render_drilldown_modal <- function(level = modal_level()) {
     if (level == "team") {
@@ -1081,7 +1335,7 @@ ui <- fluidPage(
       options   = list(pageLength = 25, scrollX = TRUE)
     ) %>%
       DT::formatRound(
-        columns = intersect(c("BBpct", "SOpct", "HRpct", "BABIP", "XBH_pct"),
+        columns = intersect(c("BBpct", "SOpct", "HRpct", "BABIP", "XBH_pct","wOBA"),
                             names(df)),
         digits = 3
       )

@@ -7,31 +7,56 @@ library(dplyr)
 # - Wins, Losses (per ORG x exptime)
 # - tourneys_won (0/1 or FALSE/TRUE per ORG x exptime)
 
-team_perf_base <- function(df, tourney_title, tourney_type = "All", start_date = NULL) {
-  stopifnot(!missing(df), !missing(tourney_title))
+# Read a single raw tournament CSV and tag with tourney_type + source_file
+read_tourney_csv <- function(path) {
+  tourney_type <- stringr::str_replace(basename(path), "\\.csv$", "")
   
-  if (nrow(df) == 0) return(df)
-  
-  out <- df %>% filter(tourney == tourney_title)
-  
-  if (!is.null(tourney_type) &&
-      tourney_type != "All" &&
-      "tourney_type" %in% names(out)) {
-    out <- out %>% filter(.data$tourney_type == tourney_type)
+  readr::read_csv(path, show_col_types = FALSE) %>%
+    dplyr::mutate(
+      tourney_type = tourney_type,
+      source_file  = basename(path)
+    )
+}
+
+# Create a nice display label from the details sheet (safe defaults)
+make_tourney_label <- function(tourney_type, name = NA_character_, type = NA_character_) {
+  if (!is.na(name) && nzchar(name)) {
+    if (!is.na(type) && nzchar(type)) {
+      paste0(name, " (", type, ")")
+    } else {
+      name
+    }
+  } else {
+    tourney_type
+  }
+}
+
+# Build the team_perf_base table from all_perf_raw
+make_team_perf_base <- function(df) {
+  needed <- c("ORG", "exptime", "W", "L", "tourney_type")
+  missing <- setdiff(needed, names(df))
+  if (length(missing) > 0) {
+    stop("Missing required columns for Team Performance: ",
+         paste(missing, collapse = ", "))
   }
   
-  # Optional start-date filter (prep for future date ranges)
-  ok_date <- !is.null(start_date) &&
-    length(start_date) == 1 &&
-    !is.na(start_date) &&
-    (inherits(start_date, "Date") || is.character(start_date))
-  
-  if (ok_date && "exptime" %in% names(out)) {
-    out <- out %>%
-      filter(!is.na(exptime) & as.Date(exptime) >= as.Date(start_date))
-  }
-  
-  out
+  df %>%
+    dplyr::mutate(
+      Wins   = suppressWarnings(as.numeric(.data$W)),
+      Losses = suppressWarnings(as.numeric(.data$L)),
+      tourney = dplyr::coalesce(.data$name, .data$tourney_type)
+    ) %>%
+    dplyr::group_by(.data$tourney_type, .data$tourney, .data$exptime, .data$ORG) %>%
+    dplyr::summarise(
+      Wins   = sum(.data$Wins, na.rm = TRUE),
+      Losses = sum(.data$Losses, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::group_by(.data$tourney_type, .data$tourney, .data$exptime) %>%
+    dplyr::mutate(
+      tourneys_won = as.integer(.data$Wins == max(.data$Wins, na.rm = TRUE))
+    ) %>%
+    dplyr::ungroup()
 }
 
 team_perf_summary <- function(df, mintourn = 1) {
@@ -96,4 +121,81 @@ add_pitcher_rates <- function(df) {
         dplyr::if_else(denom > 0, round(numer / denom, 3), NA_real_)
       }
     )
+}
+
+#compute wOBA weights function
+compute_woba_weights <- function(df) {
+  totals <- df %>%
+    summarise(
+      PAsum     = sum(PA, na.rm=TRUE),
+      ABsum     = sum(AB, na.rm=TRUE),
+      singlesum = sum(X1B.1, na.rm=TRUE),
+      doublesum = sum(X2B.1, na.rm=TRUE),
+      triplesum = sum(X3B.1, na.rm=TRUE),
+      HRsum     = sum(HR, na.rm=TRUE),
+      BBsum     = sum(BB, na.rm=TRUE),
+      IBBsum    = sum(IBB, na.rm=TRUE),
+      HPsum     = sum(HP, na.rm=TRUE),
+      SFsum     = sum(SF, na.rm=TRUE),
+      SHsum     = sum(SH, na.rm=TRUE),
+      SBsum     = sum(SB, na.rm=TRUE),
+      CSsum     = sum(CS, na.rm=TRUE),
+      outsum    = sum(IP, na.rm=TRUE)*3,
+      runssum   = sum(R, na.rm=TRUE)
+    )
+  
+  with(as.list(totals), {
+    triplerate <- ifelse((triplesum + doublesum) > 0, triplesum / (triplesum + doublesum), 0)
+    
+    RperPA   <- runssum / PAsum
+    rperout  <- runssum / outsum
+    rbb      <- rperout + 0.14
+    rhbp     <- rbb + 0.025
+    r1b      <- rbb + 0.155
+    r2b      <- r1b + 0.3
+    r3b      <- r2b + 0.27
+    rhr      <- 1.4
+    rsb      <- 0.2
+    rcs      <- 2*rperout + 0.075
+    runval   <- r1b*singlesum + r2b*doublesum + r3b*triplesum + HRsum*rhr +
+      (BBsum-IBBsum)*rbb + rhbp*HPsum + rsb*SBsum - rcs*CSsum
+    
+    unproouts <- ABsum - (singlesum + doublesum + triplesum + HRsum) + SFsum
+    proouts   <- (BBsum-IBBsum+HPsum+singlesum+doublesum+triplesum+HRsum)
+    runminus  <- runval / unproouts
+    runplus   <- runval / proouts
+    wobascale <- 1 / (runminus + runplus)
+    
+    wobabb   <- (rbb   + runminus) * wobascale
+    wobaHBP  <- (rhbp  + runminus) * wobascale
+    woba1B   <- (r1b   + runminus) * wobascale
+    woba2B   <- (r2b   + runminus) * wobascale
+    woba3B   <- (r3b   + runminus) * wobascale
+    wobaHR   <- (rhr   + runminus) * wobascale
+    wobaSB   <- rsb    * wobascale
+    wobaCS   <- rcs    * wobascale
+    
+    tibble(
+      wBB    = wobabb,      # walk (non-intentional)
+      wHBP   = wobaHBP,
+      w1B    = woba1B,
+      w2B    = woba2B,
+      w3B    = woba3B,
+      wHR    = wobaHR,
+      wSB    = wobaSB,
+      wCS    = wobaCS,
+      scale  = wobascale,
+      runenv = runssum / PAsum
+    )
+  })
+}
+
+# Compute wOBA weights for each tournament_type
+compute_woba_by_tourney <- function(df) {
+  # df is expected to be all_perf_raw
+  
+  df %>%
+    dplyr::group_by(tourney_type) %>%
+    dplyr::group_modify(~ compute_woba_weights(.x)) %>%
+    dplyr::ungroup()
 }

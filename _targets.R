@@ -1,60 +1,12 @@
 library(targets)
 
+# Make all functions (add_hitter_rates, compute_woba_*, make_team_perf_base, etc.)
+# available to the pipeline
+source("functions.R")
+
 tar_option_set(
   packages = c("dplyr", "readr", "purrr", "stringr", "fs", "tibble")
 )
-
-read_tourney_csv <- function(path) {
-  tourney_type <- stringr::str_replace(basename(path), "\\.csv$", "")
-  
-  readr::read_csv(path, show_col_types = FALSE) %>%
-    dplyr::mutate(
-      tourney_type = tourney_type,
-      source_file  = basename(path)
-    )
-}
-
-# Create a nice display label from the details sheet (safe defaults)
-make_tourney_label <- function(tourney_type, name = NA_character_, type = NA_character_) {
-  # Choose what you want in the UI:
-  # 1) just name if present
-  # 2) name + type if present
-  if (!is.na(name) && nzchar(name)) {
-    if (!is.na(type) && nzchar(type)) {
-      return(paste0(name, " (", type, ")"))
-    } else {
-      return(name)
-    }
-  }
-  tourney_type
-}
-
-make_team_perf_base <- function(df) {
-  needed <- c("ORG", "exptime", "W", "L", "tourney_type")
-  missing <- setdiff(needed, names(df))
-  if (length(missing) > 0) {
-    stop("Missing required columns for Team Performance: ", paste(missing, collapse = ", "))
-  }
-  
-  df %>%
-    dplyr::mutate(
-      Wins   = suppressWarnings(as.numeric(.data$W)),
-      Losses = suppressWarnings(as.numeric(.data$L)),
-      # label from details sheet; fallback to tourney_type
-      tourney = dplyr::coalesce(.data$name, .data$tourney_type)
-    ) %>%
-    dplyr::group_by(.data$tourney_type, .data$tourney, .data$exptime, .data$ORG) %>%
-    dplyr::summarise(
-      Wins   = sum(.data$Wins, na.rm = TRUE),
-      Losses = sum(.data$Losses, na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    dplyr::group_by(.data$tourney_type, .data$tourney, .data$exptime) %>%
-    dplyr::mutate(
-      tourneys_won = as.integer(.data$Wins == max(.data$Wins, na.rm = TRUE))
-    ) %>%
-    dplyr::ungroup()
-}
 
 list(
   tar_target(
@@ -64,7 +16,6 @@ list(
     format = "file",
     cue = tar_cue(mode = "always")
   ),
-  
   
   tar_target(
     tourn_details_file,
@@ -88,7 +39,8 @@ list(
   
   tar_target(
     team_perf_base,
-    if (nrow(all_perf_raw) == 0) tibble::tibble() else make_team_perf_base(all_perf_raw)
+    if (nrow(all_perf_raw) == 0) tibble::tibble()
+    else make_team_perf_base(all_perf_raw)
   ),
   
   tar_target(
@@ -106,6 +58,26 @@ list(
     {
       out_path <- file.path("tournament_data", "all_perf_raw.rds")
       saveRDS(all_perf_raw, out_path)
+      out_path
+    },
+    format = "file"
+  ),
+  
+  # --- wOBA weights by tournament_type ---------------------------------------
+  tar_target(
+    woba_weights,
+    if (nrow(all_perf_raw) == 0) {
+      tibble::tibble()
+    } else {
+      compute_woba_by_tourney(all_perf_raw)
+    }
+  ),
+  
+  tar_target(
+    woba_weights_rds,
+    {
+      out_path <- file.path("tournament_data", "woba_weights.rds")
+      saveRDS(woba_weights, out_path)
       out_path
     },
     format = "file"

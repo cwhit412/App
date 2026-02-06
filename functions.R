@@ -122,7 +122,7 @@ add_pitcher_rates <- function(df) {
       }
     )
 }
-
+  
 #compute wOBA weights function
 compute_woba_weights <- function(df) {
   totals <- df %>%

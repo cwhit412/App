@@ -110,7 +110,7 @@ ui <- fluidPage(
     )
   )
 )
-
+ 
   server <- function(input, output, session) {
     
     modal_level <- reactiveVal("team")
